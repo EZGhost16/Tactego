@@ -1,0 +1,410 @@
+"""
+File:    tactego.py
+Author:  Eden Zhang
+Date:    11/11/2023
+E-mail:  ezhang1@umbc.edu
+Description:
+    Simulates a game of Tactego, where it randomly places the pieces of each team on the board, two players alternate
+    taking turns, and the game goes until one team's pieces are all removed or all a team's flags are taken.
+"""
+import random
+
+
+def tactego(pieces_file, length, width):
+    """
+    The main function that will run the whole game
+    :param pieces_file: Given file of game pieces
+    :param length: Length of the board
+    :param width: Width of the board
+    """
+    game_end = False
+    turn_count = 0
+
+    # Set up the game
+    board = setup_pieces(pieces_file, create_board(length, width))
+    print_board(board)
+
+    while game_end != True:
+        # Determines which player's turn it is
+        if turn_count % 2 == 0:
+            player = 'R'
+        else:
+            player = 'B'
+
+        # Taking the turns
+        board = take_turn(board, player)
+        turn_count += 1
+
+        # Determines if the game has ended
+        game_end = win_condition(board)
+
+
+def create_board(length, width):
+    """
+    Creates the board and records its data, so it is saved and can be easily printed
+    :param length: The length of the board
+    :param width: The width of the board
+    :return: Returns the created board
+    """
+    board = []
+
+    # Builds up the lists in the rows and adds it to the board
+    for i in range(length):
+        row = []
+        for x in range(width + 1):
+            row.append("     ")
+        board.append(row)
+
+    # Numbering the rows on the 0 index of each inner list
+    for i in range(len(board)):
+        board[i][0] = str(i) + "  "
+
+    return board
+
+
+def print_board(board):
+    """
+    Prints the board in the proper format
+    :param board: The board
+    """
+
+    # Column headers #
+    column_header = []
+    for i in range(len(board[0]) - 1):
+        column_header.append(str(i))
+    print("   " + "    ".join(column_header))
+
+    # Main body rows and columns
+    for row in board:
+        print("".join(row))
+
+
+def open_pieces(pieces_file):
+    """
+    Opens and reads the pieces to bring them into the code for use
+    :param pieces_file: The given file of game pieces
+    :return: The pieces in a list for the rest of the code to use
+    """
+    red_pieces = []
+    blue_pieces = []
+
+    # Taking the pieces and their values from the file and putting them in a dictionary
+    with open(pieces_file, 'r') as file:
+        for line in file:
+
+            # We take all the stuff from the file
+            face, many = line.strip().split()
+
+            # Taking all the gathered info and putting it in the dictionaries that will hold the pieces
+            for i in range(int(many)):
+                red_face = 'R' + face + "   "
+                red_pieces.append(red_face)
+
+                blue_face = 'B' + face + "   "
+                blue_pieces.append(blue_face)
+
+    return blue_pieces, red_pieces
+
+
+def setup_pieces(pieces_file, board):
+    """
+    Randomly places the pieces on the board in the first iteration
+    :param pieces_file: Gets the file of pieces
+    :param board: The board
+    :return: New board with the pieces
+    """
+    # Grabs the red and blue pieces in the file
+    blue_pieces, red_pieces = open_pieces(pieces_file)
+
+    # Putting the pieces randomly on the board
+    random.shuffle(red_pieces)
+    random.shuffle(blue_pieces)
+
+    # Placing the red pieces
+    red_row = 0
+    red_col = 1
+
+    # Iterates through the red pieces as it places them
+    for piece in red_pieces:
+        board[red_row][red_col] = piece
+        red_col += 1
+        red_col = red_col % len(board[0])
+
+        # Red column cannot be 0 given how the board is structured
+        if red_col == 0:
+            red_col += 1
+
+        # If the placing reaches the end of a row, then we go down to the next row
+        if red_col == 1:
+            red_row += 1
+
+    # Placing the blue pieces
+    blue_row = len(board) - 1
+    blue_col = 1
+
+    # Iterates through the blue pieces as it places them
+    for piece in blue_pieces:
+        # Makes sure that it doesn't place over an existing piece
+        while board[blue_row][blue_col] != piece:
+            if "R" not in board[blue_row][blue_col]:
+                board[blue_row][blue_col] = piece
+            else:
+                blue_col += 1
+        blue_col += 1
+
+        # Makes sure to loop around the board if it reaches the end of a row
+        blue_col = blue_col % len(board[0])
+
+        # Blue column cannot be 0 given how the board is structured
+        if blue_col == 0:
+            blue_col += 1
+
+        # If the placing reaches the end of a row, then we go up to the next row
+        if blue_col == 1:
+            blue_row -= 1
+
+    return board
+
+
+def take_turn(board, player):
+    """
+    Goes through the motions of a player's turn
+    :param board: Board information
+    :param player: Current turn player
+    :return: Updated board state
+    """
+    # Checks whether the move is valid
+    check = False
+
+    while check != True:
+        # Gets the player's choice of action
+        print(player + '\'s turn:')
+        start_pos_x, start_pos_y = input("Select Piece to Move by Position >> ").split()
+        end_pos_x, end_pos_y = input("Select Position to Move Piece >> ").split()
+
+        # Error bound that adjusts the user's input to properly match up with the board display and movements
+        start_pos_y = int(start_pos_y) + 1
+        end_pos_y = int(end_pos_y) + 1
+        start_pos_x = int(start_pos_x)
+        end_pos_x = int(end_pos_x)
+
+        # Checks whether the move is valid and if so then
+        check = valid_move_check(start_pos_x, start_pos_y, end_pos_x, end_pos_y, board, player)
+
+        if check == True:
+            # If a piece collides with another piece, then battle will ensue
+            if "R" in board[end_pos_x][end_pos_y] or "B" in board[end_pos_x][end_pos_y]:
+
+                # Checks if any of the pieces within the battle are Assassins, Sappers, or Mines
+                if ("A" in board[start_pos_x][start_pos_y] or
+                        "S" in board[start_pos_x][start_pos_y] or
+                        "M" in board[start_pos_x][start_pos_y] or
+                        "A" in board[end_pos_x][end_pos_y] or
+                        "S" in board[end_pos_x][end_pos_y] or
+                        "M" in board[end_pos_x][end_pos_y]):
+
+                    # Goes through the special battle
+                    if battle_extra(start_pos_x, start_pos_y, end_pos_x, end_pos_y, board):
+
+                        # Special battle results
+                        board = move_pieces(start_pos_x, start_pos_y, end_pos_x, end_pos_y, board)
+
+                    else:
+                        board = move_pieces(start_pos_x, start_pos_y, start_pos_x, start_pos_y, board)
+
+                        # Special case with Mines
+                        if "M" in board[end_pos_x][end_pos_y]:
+                            board = move_pieces(end_pos_x, end_pos_y, end_pos_x, end_pos_y, board)
+
+                # Goes through the normal battles
+                else:
+                    if battle_base(start_pos_x, start_pos_y, end_pos_x, end_pos_y, board):
+                        board = move_pieces(start_pos_x, start_pos_y, end_pos_x, end_pos_y, board)
+
+                    else:
+                        # The attacking piece gets removed
+                        board = move_pieces(start_pos_x, start_pos_y, start_pos_x, start_pos_y, board)
+            else:
+                # Moves to the helper function of moving the pieces
+                board = move_pieces(start_pos_x, start_pos_y, end_pos_x, end_pos_y, board)
+
+    print_board(board)
+    return board
+
+
+def valid_move_check(start_pos_x, start_pos_y, end_pos_x, end_pos_y, board, player):
+    """
+    Checks that the player's choice of move is a valid one within the rules and parameters of the game.
+    :param start_pos_x: Start position of the piece row
+    :param start_pos_y: Col
+    :param end_pos_x: Where the player wants the piece to move row
+    :param end_pos_y: col
+    :param board: The board information
+    :param player: Current turn player
+    :return: True or False to signal that the move is valid or not
+    """
+    if end_pos_x not in [start_pos_x, start_pos_x + 1, start_pos_x - 1] or end_pos_y not in [start_pos_y,
+                                                                                             start_pos_y + 1,
+                                                                                             start_pos_y - 1]:
+        print("That move is beyond the range of the piece.")
+        return False
+    elif "R" in board[end_pos_x][end_pos_y] and "R" in board[start_pos_x][start_pos_y]:
+        print("You are trying to take over one of your own pieces.")
+        return False
+    elif "B" in board[end_pos_x][end_pos_y] and "B" in board[start_pos_x][start_pos_y]:
+        print("You are trying to take over one of your own pieces.")
+        return False
+    elif "F" in board[start_pos_x][start_pos_y]:
+        print("You cannot move a flag.")
+        return False
+    elif "R" not in board[start_pos_x][start_pos_y] and "B" not in board[start_pos_x][start_pos_y]:
+        print("Please move a piece.")
+        return False
+    elif player not in board[start_pos_x][start_pos_y]:
+        print("You can only move your own pieces.")
+        return False
+    elif "M" in board[start_pos_x][start_pos_y]:
+        print("You cannot move a mine.")
+        return False
+    else:
+        return True
+
+
+def move_pieces(start_pos_x, start_pos_y, end_pos_x, end_pos_y, board):
+    """
+    Takes the info of what piece the user wants to move and moves it
+    :param start_pos_x: The start position of the piece in the length
+    :param start_pos_y: The start position of the piece in the width
+    :param end_pos_x: The end position of the piece in the length
+    :param end_pos_y: The end position of the piece in the width
+    :param board: The current board state
+    :return: Returns the board with the moved piece
+    """
+    board[end_pos_x][end_pos_y] = board[start_pos_x][start_pos_y]
+    board[start_pos_x][start_pos_y] = "     "
+    return board
+
+
+def battle_base(attacker_x, attacker_y, defender_x, defender_y, board):
+    """
+    When two pieces on opposite teams collide, this function will calculate each pieces values and determine which
+    piece will win. Which piece stays on the board and which piece is removed
+    :param attacker_x: The first piece row index, as represented by the start position
+    :param attacker_y: The first piece's col index, as rep by start pos
+    :param defender_x: The second piece's row index, as rep by end position
+    :param defender_y: The second piece's col index, as rep by end pos
+    :param board: Board information
+    :return: Returns True for if the attacker wins, False for if the attacker loses
+    """
+    # Takes the values of each piece
+    value = (board[attacker_x][attacker_y]).strip().split()
+    temp_list = list(value[0])
+    temp_string = ''
+    for i in temp_list[1:]:
+        temp_string = temp_string + i
+    attacker_value = int(temp_string)
+
+    value = (board[defender_x][defender_y]).strip().split()
+    temp_list = list(value[0])
+    defender_value = temp_list[1]
+
+    # Checks if the defender is a flag
+    if defender_value != 'F':
+        temp_string = ''
+        for i in temp_list[1:]:
+            temp_string = temp_string + i
+        defender_value = int(temp_string)
+
+    # Now comparing the values
+    if defender_value == 'F':
+        return True
+    elif attacker_value >= defender_value:
+        return True
+    else:
+        return False
+
+
+def battle_extra(attacker_x, attacker_y, defender_x, defender_y, board):
+    """
+    Basically the same as battle base, but specifically for the special pieces of Assassin, Mines, and Sappers
+    :param attacker_x: The first piece row index, as represented by the start position
+    :param attacker_y: The first piece's col index, as rep by start pos
+    :param defender_x: The second piece's row index, as rep by end position
+    :param defender_y: The second piece's col index, as rep by end pos
+    :param board: Board information
+    :return: Returns True for if the attacker wins, False for if the attacker loses
+    """
+    # Assassin defeats any one it attacks and is defeated when attacked
+    if "A" in board[attacker_x][attacker_y]:
+        return True
+    elif "A" in board[defender_x][defender_y]:
+        return True
+
+    # Mine defeats anyone that attacks it, unless it is a Sapper
+    elif "M" in board[defender_x][defender_y] and "S" not in board[attacker_x][attacker_y]:
+        return False
+    elif "S" in board[attacker_x][attacker_y] and "M" in board[defender_x][defender_y]:
+        return True
+
+    # A Sapper is defeated whenever it is attacked, even by another Sapper
+    elif "S" in board[defender_x][defender_y]:
+        return True
+
+
+def flag_checker(board):
+    """
+    Checks that each team has all their flags, and if not then it will signal to the win condition
+    :param board: Board info
+    :return: Returns True or False to indicate whether a team has their flag or not
+    """
+    # Boolean values that track the red and blue team's flag(s)
+    red_flag = True
+    red_flag_tracker = 0
+    blue_flag = True
+    blue_flag_tracker = 0
+
+    # Iterates through the whole board to check for any situation that would result in the end of the game.
+    for row in board:
+        for cell in row:
+            if "RF" in cell:
+                red_flag_tracker += 1
+
+    for row in board:
+        for cell in row:
+            if "BF" in cell:
+                blue_flag_tracker += 1
+
+    # If the loop doesn't find the flags then it'll signal that
+    if red_flag_tracker == 0:
+        red_flag = False
+    if blue_flag_tracker == 0:
+        blue_flag = False
+
+    return red_flag, blue_flag
+
+
+def win_condition(board):
+    """
+    If the conditions are met for the end of the game, then it will check for that and then run the results
+    :param board: Board info
+    :return: True or False to indicate if the game has ended
+    """
+    red_flag, blue_flag = flag_checker(board)
+
+    # Checking the flags and determining if conditions are met to determine a winner
+    if red_flag and blue_flag:
+        return False
+    elif red_flag and blue_flag == False:
+        print("R wins the game.")
+        return True
+    else:
+        print("B wins the game.")
+        return True
+
+
+if __name__ == '__main__':
+    random.seed(input('What is seed? '))
+    file_name = input('What is the filename for the pieces? ')
+    length = int(input('What is the length? '))
+    width = int(input('What is the width? '))
+    tactego(file_name, length, width)
